@@ -7,7 +7,10 @@ import { LegalGate } from "@/components/LegalGate";
 export default async function CoachLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/coach-auth?callbackUrl=/coach");
-  if (session.user.role !== "coach" && session.user.role !== "admin") redirect("/app");
+  // Roles stay in their own area — owners belong in /admin, athletes in /app.
+  if (session.user.role !== "coach") {
+    redirect(session.user.role === "admin" ? "/admin" : "/app");
+  }
 
   const profile = await prisma.profile.findUnique({
     where: { userId: session.user.id },

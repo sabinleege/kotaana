@@ -6,6 +6,9 @@
  */
 import { useState } from "react";
 import { signIn } from "next-auth/react";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
+import { portalLoginUrl } from "@/lib/portal";
+import { PortalNotice } from "@/components/PortalNotice";
 import { useRouter } from "next/navigation";
 
 export default function CoachAuthPage() {
@@ -55,6 +58,8 @@ export default function CoachAuthPage() {
           Separate login for coaches monitoring athletes. Athletes use the main app login.
         </p>
 
+        <PortalNotice portalLabel="Coach" />
+
         <div className="mt-4 flex gap-2">
           <button
             type="button"
@@ -74,6 +79,13 @@ export default function CoachAuthPage() {
           >
             Create coach account
           </button>
+        </div>
+
+        <div className="mt-6">
+          <GoogleSignInButton callbackUrl="/coach" intendedRole="coach" />
+          <div className="mt-5 flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
+          </div>
         </div>
 
         <form onSubmit={onSubmit} className="mt-6 space-y-3">
@@ -115,7 +127,7 @@ export default function CoachAuthPage() {
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
           Athlete?{" "}
-          <a href="/auth" className="text-primary">
+          <a href={portalLoginUrl("athlete")} className="text-primary">
             Go to athlete login
           </a>
         </p>

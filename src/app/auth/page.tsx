@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { PortalNotice } from "@/components/PortalNotice";
 import { toast } from "sonner";
 import { Dumbbell, Loader2 } from "lucide-react";
 

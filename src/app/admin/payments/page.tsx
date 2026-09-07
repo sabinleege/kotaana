@@ -22,8 +22,9 @@ export default function AdminPaymentsPage() {
   const [busy, setBusy] = useState<string | null>(null);
 
   async function load() {
-    const data = await apiGet<{ pending: Req[]; recent: Req[]; requests?: Req[] }>("/api/payments/momo/approve").catch(
-      () => ({ pending: [], recent: [] }),
+    type ApproveResp = { pending: Req[]; recent: Req[]; requests?: Req[] };
+    const data = await apiGet<ApproveResp>("/api/payments/momo/approve").catch(
+      (): ApproveResp => ({ pending: [], recent: [] }),
     );
     setPending(data.pending || data.requests || []);
     setRecent(data.recent || []);

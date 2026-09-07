@@ -13,7 +13,7 @@ export class AuthError extends Error {
   }
 }
 
-export type SessionUser = { id: string; role: Role; email?: string | null };
+export type SessionUser = { id: string; role: Role; email?: string | null; name?: string | null };
 
 /** Require any authenticated user. Throws AuthError(401) otherwise. */
 export async function requireUser(): Promise<SessionUser> {
@@ -23,6 +23,7 @@ export async function requireUser(): Promise<SessionUser> {
     id: session.user.id,
     role: session.user.role,
     email: session.user.email,
+    name: session.user.name,
   };
 }
 

@@ -34,3 +34,11 @@ next-env.d.ts
 # prisma
 prisma/*.db
 prisma/*.db-journal
+
+# local uploads (progress photos, medical documents)
+.data/
+
+# per-portal build dirs
+.next-athlete/
+.next-coach/
+.next-owner/

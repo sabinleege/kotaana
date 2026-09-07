@@ -7,7 +7,8 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { PortalNotice } from "@/components/PortalNotice";
+import { portalLoginUrl } from "@/lib/portal";
 
 export default function OwnerAuthPage() {
   const router = useRouter();
@@ -55,6 +56,8 @@ export default function OwnerAuthPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Metrics &amp; control only. Athletes use Athlete login; coaches use Coach login.
         </p>
+
+        <PortalNotice portalLabel="Owner" />
 
         <div className="mt-4 flex gap-2">
           <button
@@ -115,11 +118,9 @@ export default function OwnerAuthPage() {
         </form>
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          <Link href="/auth" className="text-primary">Athlete</Link>
+          <a href={portalLoginUrl("athlete")} className="text-primary">Athlete</a>
           {" · "}
-          <Link href="/coach-auth" className="text-primary">Coach</Link>
-          {" · "}
-          <Link href="/" className="text-primary">Home</Link>
+          <a href={portalLoginUrl("coach")} className="text-primary">Coach</a>
         </p>
         {mode === "bootstrap" && (
           <p className="mt-2 text-center text-[11px] text-muted-foreground">

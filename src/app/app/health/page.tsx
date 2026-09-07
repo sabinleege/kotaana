@@ -124,6 +124,7 @@ function HealthInner() {
             <div className="text-sm text-muted-foreground">Rest and readiness</div>
           </button>
         </div>
+        </>
       )}
 
       {tab === "injuries" && (

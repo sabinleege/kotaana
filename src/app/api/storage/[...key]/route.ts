@@ -1,13 +1,20 @@
 /**
  * GET /api/storage/* — serve local uploads (dev)
+ *
+ * Requires a signed-in user. These files include injury photos, progress photos
+ * and medical documents, so an unauthenticated fetch must not be able to read
+ * one just by knowing (or guessing) the key.
  */
 
+import { requireUser } from "@/lib/authz";
 import { route, json } from "@/lib/api";
 import { absolutePath } from "@/lib/storage/local";
 import { readFile } from "fs/promises";
 import path from "path";
 
 export const GET = route(async (_req: Request, ctx: { params: Promise<{ key: string[] }> }) => {
+  await requireUser();
+
   const { key: parts } = await ctx.params;
   const key = parts.map(decodeURIComponent).join("/");
 
@@ -35,7 +42,8 @@ export const GET = route(async (_req: Request, ctx: { params: Promise<{ key: str
       status: 200,
       headers: {
         "Content-Type": mime,
-        "Cache-Control": "public, max-age=86400",
+        // Private: these are per-user uploads, never cache them in a shared proxy.
+        "Cache-Control": "private, max-age=86400",
       },
     });
   } catch {

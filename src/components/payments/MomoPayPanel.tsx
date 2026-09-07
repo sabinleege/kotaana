@@ -136,8 +136,8 @@ export function MomoPayPanel({ role }: Props) {
                 planType === p.id ? "border-primary bg-primary/10" : "border-border"
               }`}
             >
-              <div className="font-medium">{p.name}</div>
-              <div className="text-xs text-muted-foreground">${p.amount}</div>
+              <div className="font-medium">{p.label}</div>
+              <div className="text-xs text-muted-foreground">{p.amountLabel}</div>
             </button>
           ))}
         </div>
@@ -149,7 +149,7 @@ export function MomoPayPanel({ role }: Props) {
         onClick={submitPay}
         className="w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
       >
-        {busy ? "Sending…" : selected ? `I paid — submit ${selected.name}` : "I paid — submit"}
+        {busy ? "Sending…" : selected ? `I paid — submit ${selected.label}` : "I paid — submit"}
       </button>
 
       {pending.length > 0 && (

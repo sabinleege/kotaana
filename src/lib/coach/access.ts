@@ -4,13 +4,12 @@
  */
 
 import { prisma } from "@/lib/db";
+import { AuthError } from "@/lib/authz";
 
 export async function requireCoach(userId: string) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, email: true, name: true } });
   if (!user || user.role !== "coach") {
-    const err = new Error("Coach access only");
-    (err as any).status = 403;
-    throw err;
+    throw new AuthError(403, "Coach access only");
   }
   return user;
 }
@@ -29,9 +28,7 @@ export async function assertManages(coachId: string, athleteId: string) {
     where: { coachId, athleteId, status: "active" },
   });
   if (!rel) {
-    const err = new Error("Not managing this athlete");
-    (err as any).status = 403;
-    throw err;
+    throw new AuthError(403, "Not managing this athlete");
   }
   return rel;
 }

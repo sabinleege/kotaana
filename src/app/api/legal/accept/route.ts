@@ -16,13 +16,17 @@ export const POST = route(async (req: Request) => {
   if (!tos || !medical) return json({ error: "You must accept the Terms and the Medical Disclaimer to continue." }, 400);
 
   const now = new Date();
-  await prisma.profile.update({
+  const accepted = {
+    tosAccepted: true, tosAcceptedAt: now,
+    medicalDisclaimerAccepted: true, medicalDisclaimerAcceptedAt: now,
+    ...(data ? { dataConsent: true, dataConsentAt: now } : {}),
+  };
+  // upsert, not update — an account created without a Profile (e.g. the first
+  // owner) must still be able to accept and get through the gate.
+  await prisma.profile.upsert({
     where: { userId: me.id },
-    data: {
-      tosAccepted: true, tosAcceptedAt: now,
-      medicalDisclaimerAccepted: true, medicalDisclaimerAcceptedAt: now,
-      ...(data ? { dataConsent: true, dataConsentAt: now } : {}),
-    },
+    update: accepted,
+    create: { userId: me.id, fullName: me.name ?? "", email: me.email ?? "", ...accepted },
   });
   return json({ ok: true });
 });

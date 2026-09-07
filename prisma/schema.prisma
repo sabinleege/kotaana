@@ -8,7 +8,11 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  // Pooled connection (PgBouncer) for the app's queries.
   url      = env("DATABASE_URL")
+  // Neon's pooler can't hold the session a migration needs — point DDL at the
+  // direct endpoint. Falls back to DATABASE_URL when DIRECT_URL isn't set.
+  directUrl = env("DIRECT_URL")
 }
 
 enum Role {

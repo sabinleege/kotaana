@@ -34,8 +34,14 @@ export function route<T extends unknown[]>(
         );
       }
       console.error("[api] Unhandled error:", err);
+      // Never surface internal error text (Prisma/env/stack details) to the client.
+      // In dev, keep it visible so the app is debuggable locally.
       const message =
-        err instanceof Error ? err.message : "Internal server error";
+        process.env.NODE_ENV === "production"
+          ? "Internal server error"
+          : err instanceof Error
+            ? err.message
+            : "Internal server error";
       return NextResponse.json({ error: message }, { status: 500 });
     }
   };

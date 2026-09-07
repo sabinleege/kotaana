@@ -11,6 +11,11 @@ import {
   HeartPulse,
   Camera,
   Bell,
+  Target,
+  ListChecks,
+  FileText,
+  User,
+  CreditCard,
 } from "lucide-react";
 import { FloatingNav, type NavItem } from "@/components/FloatingNav";
 import { AICoachChat } from "@/components/athlete/AICoachChat";
@@ -24,7 +29,12 @@ const NAV: NavItem[] = [
   { title: "Progress", url: "/app/progress", icon: TrendingUp },
   { title: "Photos", url: "/app/photos", icon: Camera },
   { title: "Health", url: "/app/health", icon: HeartPulse },
+  { title: "Goals", url: "/app/goals", icon: Target },
+  { title: "Exercises", url: "/app/exercises", icon: ListChecks },
+  { title: "Medical", url: "/app/medical", icon: FileText },
   { title: "Notifications", url: "/app/notifications", icon: Bell },
+  { title: "Profile", url: "/app/profile", icon: User },
+  { title: "Subscription", url: "/app/subscription", icon: CreditCard },
   { title: "Settings", url: "/app/settings", icon: Settings },
 ];
 

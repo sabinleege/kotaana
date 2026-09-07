@@ -1,33 +1,27 @@
 /**
  * POST /api/payments/momo/webhook
- * MTN callback when payment status changes.
+ *
+ * DISABLED. Kotaana runs MoMo on manual approval — an owner/coach approves each
+ * request via /api/payments/momo/approve. Nothing should be activating plans here.
+ *
+ * This endpoint previously accepted an unsigned body and called activatePlan()
+ * with a caller-supplied userId + planId, which let anyone grant themselves a
+ * paid plan. It is kept as an explicit 410 so the URL cannot silently be
+ * re-pointed at the old behaviour.
+ *
+ * To re-enable when the MTN MoMo API is wired up:
+ *   1. verify the MTN signature (or X-Callback token) against MOMO_PRIMARY_KEY
+ *      BEFORE parsing the body,
+ *   2. look the referenceId up in your own Payment table and take userId/planId
+ *      from THAT row — never from the request body,
+ *   3. only then call activatePlan().
  */
 
-import { z } from "zod";
 import { route, json } from "@/lib/api";
-import { activatePlan } from "@/lib/payments/webhooks";
-import type { PlanId } from "@/lib/payments/plans";
 
-const schema = z.object({
-  referenceId: z.string(),
-  status: z.enum(["pending", "successful", "failed"]),
-  userId: z.string().optional(),
-  planId: z.string().optional(),
-  amount: z.number().optional(),
-});
-
-export const POST = route(async (req: Request) => {
-  // In production verify MoMo signature / IP whitelist
-  const body = schema.parse(await req.json());
-
-  if (body.status === "successful" && body.userId && body.planId) {
-    await activatePlan({
-      userId: body.userId,
-      planId: body.planId as PlanId,
-      provider: "momo",
-      externalId: body.referenceId,
-    });
-  }
-
-  return json({ received: true });
+export const POST = route(async () => {
+  return json(
+    { error: "MoMo webhooks are disabled. Payments are approved manually by the platform owner." },
+    410,
+  );
 });

@@ -36,6 +36,9 @@ export const POST = route(async (req: Request) => {
       name: body.name,
       passwordHash,
       role: "admin",
+      // Without these the owner has no Profile row and gets stuck at LegalGate.
+      profile: { create: { fullName: body.name, email } },
+      subscription: { create: { planType: "free", status: "inactive" } },
     },
   });
 

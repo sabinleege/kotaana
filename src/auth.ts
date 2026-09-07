@@ -1,4 +1,5 @@
 import NextAuth from "next-auth";
+import { cookies } from "next/headers";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import bcrypt from "bcryptjs";
@@ -47,6 +48,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async signIn({ user, account }) {
       if (account?.provider === "google" && user.email) {
         const email = user.email.toLowerCase();
+
+        // Which portal did they start from? Only ever used to pick the role of a
+        // BRAND-NEW account — an existing user's role is never touched here, so
+        // the cookie can't be used to escalate. Self-selecting coach at signup is
+        // already allowed by /api/auth/register.
+        let intendedRole: "user" | "coach" = "user";
+        try {
+          const jar = await cookies();
+          if (jar.get("kotaana_role_intent")?.value === "coach") intendedRole = "coach";
+        } catch {
+          // Not in a request context — fall back to athlete.
+        }
+
         await prisma.user.upsert({
           where: { email },
           update: { name: user.name ?? undefined, image: user.image ?? undefined },
@@ -54,7 +68,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             email,
             name: user.name ?? null,
             image: user.image ?? null,
-            role: "user",
+            role: intendedRole,
             profile: { create: { fullName: user.name ?? "", email } },
             subscription: { create: { planType: "free", status: "inactive" } },
           },
