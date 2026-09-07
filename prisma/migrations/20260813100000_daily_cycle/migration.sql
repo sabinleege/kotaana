@@ -1,0 +1,4 @@
+ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "lastDayKey" TEXT;
+ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "dailyReportDate" TEXT;
+ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "dailyReportText" TEXT;
+ALTER TABLE "profiles" ADD COLUMN IF NOT EXISTS "dailySessionJson" JSONB;

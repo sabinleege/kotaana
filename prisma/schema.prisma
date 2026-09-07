@@ -1,0 +1,670 @@
+// Kotaana — unified schema (athlete tracking + coaching)
+// Merged from kotaana-ai + coach-connect. Replaces Supabase/Postgres RLS;
+// authorization is enforced in the app's server layer (see src/lib/authz.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  user
+  coach
+  admin
+}
+
+// ─────────────────────────── Auth (replaces Supabase auth.users) ───────────────────────────
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String? // null for OAuth-only accounts
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  role          Role      @default(user)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Auth.js
+  accounts Account[]
+
+  // Owned athlete data
+  profile       Profile?
+  mealLogs      MealLog[]
+  workoutLogs   WorkoutLog[]
+  workoutPlans  WorkoutPlan[]
+  goalProgress  GoalProgress?
+  weightHistory WeightHistory[]
+  activityData  ActivityData[]
+  aiUsage       AiUsage[]
+  notifications Notification[]
+  subscription  Subscription?
+  injuries      Injury[] // as athlete
+  dailyCheckins DailyCheckin[]
+  runActivities RunActivity[]
+  progressPhotos ProgressPhoto[]
+  medicalDocuments MedicalDocument[]
+  recommendationEvents RecommendationEvent[]
+  monthlyProgressReports MonthlyProgressReport[]
+  paymentRequests        PaymentRequest[]
+  exercisePerformances   ExercisePerformance[]
+
+  // Coaching relations
+  coachRelations     CoachAthleteRelation[] @relation("CoachRelations")
+  athleteRelations   CoachAthleteRelation[] @relation("AthleteRelations")
+  coachNotesWritten  CoachNote[]            @relation("CoachNotesByCoach")
+  coachNotesReceived CoachNote[]            @relation("CoachNotesForAthlete")
+  followUpsCreated   FollowUp[]             @relation("FollowUpsByCoach")
+  followUpsReceived  FollowUp[]             @relation("FollowUpsForAthlete")
+  sessionsCreated    TrainingSession[]      @relation("SessionsByCoach")
+  invitesSent        CoachInvite[]          @relation("InvitesByCoach")
+  invitesAccepted    CoachInvite[]          @relation("InvitesAcceptedBy")
+
+  @@map("users")
+}
+
+// Auth.js account linking (OAuth-ready; unused for pure credentials login)
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─────────────────────────── Profile (athlete data shared with coach) ───────────────────────────
+
+model Profile {
+  userId   String  @id
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName String  @default("")
+  email    String?
+  avatarUrl String?
+
+  // Body / demographics
+  age          Int?     @default(28)
+  gender       String?
+  dateOfBirth  DateTime? @db.Date
+  height       Float?   @default(178)
+  weight       Float?   @default(80)
+  targetWeight Float?   @default(75)
+  goalWeight   Float?
+  bodyFat      Float?   @default(18)
+
+  // Scores / vitals
+  fitnessScore        Int? @default(72)
+  recoveryScore       Int? @default(85)
+  consistencyScore    Int? @default(87)
+  heartRate           Int? @default(68)
+  dailyCaloriesTarget Int? @default(2150)
+  waterGlasses        Int? @default(0)
+  lastDayKey          String?  // YYYY-MM-DD — when this changes, daily counters reset
+  dailyReportDate     String?  // day the daily report was built for
+  dailyReportText     String?  @db.Text
+  dailySessionJson    Json?
+
+  waterTarget         Int? @default(8)
+  activityLevel       String? @default("moderate")
+
+  // Goals
+  goals           String[] @default([])
+  goalDescription String?  @default("")
+  goalsNotes      String?  @default("")
+  primaryGoal     String?
+  track           String?   // football | hypertrophy | fat_loss | general | endurance | pregnancy | return_to_train
+  ageBand         String?   // youth_u12 | youth_u14 | youth_u17 | adult | masters
+  level           String?   @default("beginner") // beginner | intermediate | advanced
+  coachBlockedExercises Json @default("[]")
+
+  timeline        String?  @default("6months")
+
+  // Health / injuries
+  chronicDiseases  String? @default("")
+  pastSurgeries    String? @default("")
+  medications      String? @default("")
+  painAreas        String? @default("")
+  injuries         Json    @default("[]")
+  injuriesDetailed Json    @default("[]")
+  otherLimitations String? @default("")
+
+  // Training preferences
+  trainingDaysPerWeek Int?     @default(3)
+  sessionDurationMin  Int?     @default(45)
+  preferredTimes      String[] @default([])
+  equipment           String[] @default([])
+  trainingLocation    String?  @default("gym")
+  environmentNotes    String?  @default("")
+
+  // Nutrition preferences
+  dietaryStyle         String[] @default([])
+  allergies            String[] @default([])
+  mealsPerDay          Int?     @default(3)
+  culturalRestrictions String?  @default("")
+
+  // Consent / meta
+  medicalDisclaimerAccepted   Boolean   @default(false)
+  medicalDisclaimerAcceptedAt DateTime?
+  tosAccepted                 Boolean   @default(false)
+  tosAcceptedAt               DateTime?
+  dataConsent                 Boolean   @default(false)
+  dataConsentAt               DateTime?
+  profileHash                 String?
+  profession                  String?   @default("office")
+
+  // Roster display (coach app)
+  adherencePercentage Int?
+  lastActiveAt        DateTime?
+  onboardingCompleted Boolean   @default(false)
+  momoNumber          String?   // MTN MoMo / mobile money number for receiving or identifying payer
+  momoName            String?   // Account name as registered on MoMo
+
+
+  // Personal connect code — share it so a coach/athlete can send a connection request
+  connectCode String? @unique
+
+  // Health conditions & life status (drives condition-aware AI plans)
+  healthConditions Json      @default("[]") // [{type, notes, since, medications}]
+  isPregnant       Boolean   @default(false)
+  pregnancyDueDate DateTime? @db.Date
+  cycleTracking    Boolean   @default(false)
+  cycleLastPeriod  DateTime? @db.Date
+  cycleLengthDays  Int?      @default(28)
+
+  // Cached AI "profile report" — compact summary injected into AI prompts to save tokens.
+  aiReport   String?
+  aiReportAt DateTime?
+  weeklySummary    String?
+  weeklySummaryAt  DateTime?
+  goalPlanJson     Json?
+  riskScoreJson    Json?
+  coachPermissions Json?
+  nutritionAdherence Int?
+
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([onboardingCompleted])
+  @@index([profileHash])
+  @@map("profiles")
+}
+
+// ─────────────────────────── Athlete tracking ───────────────────────────
+
+model MealLog {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date          DateTime @db.Date
+  meals         Json     @default("[]")
+  totalCalories Int      @default(0)
+  totalProtein  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@map("meal_logs")
+}
+
+model WorkoutLog {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime @db.Date
+  planId         String?
+  completionRate Float    @default(0)
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  @@index([userId, date])
+  @@map("workout_logs")
+}
+
+model WorkoutPlan {
+  id                 String   @id @default(uuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStart          DateTime @db.Date
+  planData           Json
+  completedExercises Json     @default("[]")
+  isAdjusted         Boolean  @default(false)
+  isActive           Boolean  @default(true)
+  profileHash        String?
+  generatedAt        DateTime @default(now())
+  version            Int      @default(1)
+  regenReason        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId, isActive])
+  @@index([profileHash])
+  @@map("workout_plans")
+}
+
+model GoalProgress {
+  userId           String   @id
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentWeight    Float?
+  projectedOutcome String?
+  lastCalculated   DateTime @default(now())
+
+  @@map("goal_progress")
+}
+
+model WeightHistory {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekLabel  String
+  weight     Float
+  recordedAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("weight_history")
+}
+
+model ActivityData {
+  id       String   @id @default(uuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day      String
+  date     DateTime @db.Date
+  calories Int      @default(0)
+
+  @@unique([userId, date])
+  @@map("activity_data")
+}
+
+model AiUsage {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  functionName String
+  tokensIn     Int      @default(0)
+  tokensOut    Int      @default(0)
+  status       String   @default("success")
+  errorMessage String?
+  durationMs   Int?
+  createdAt    DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("ai_usage")
+}
+
+// ─────────────────────────── Coaching ───────────────────────────
+
+model CoachAthleteRelation {
+  id             String   @id @default(uuid())
+  coachId        String
+  athleteId      String
+  coach          User     @relation("CoachRelations", fields: [coachId], references: [id], onDelete: Cascade)
+  athlete        User     @relation("AthleteRelations", fields: [athleteId], references: [id], onDelete: Cascade)
+  status         String   @default("active") // pending | active | paused | ended
+  requestedByRole String  @default("coach") // who initiated the connection: coach | athlete
+  notes          String?  @default("")
+  coveredByCoach Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([coachId, athleteId])
+  @@index([coachId, status])
+  @@index([athleteId, status])
+  @@map("coach_athlete_relations")
+}
+
+model CoachNote {
+  id              String   @id @default(uuid())
+  coachId         String
+  athleteId       String
+  coach           User     @relation("CoachNotesByCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  athlete         User     @relation("CoachNotesForAthlete", fields: [athleteId], references: [id], onDelete: Cascade)
+  content         String
+  visibleToAthlete Boolean @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([coachId, athleteId])
+  @@map("coach_notes")
+}
+
+model FollowUp {
+  id          String    @id @default(uuid())
+  coachId     String
+  athleteId   String
+  coach       User      @relation("FollowUpsByCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  athlete     User      @relation("FollowUpsForAthlete", fields: [athleteId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  dueDate     DateTime? @db.Date
+  priority    String    @default("normal") // low | normal | high
+  status      String    @default("pending") // pending | done | snoozed
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([coachId, status])
+  @@index([athleteId, status])
+  @@map("follow_ups")
+}
+
+model Injury {
+  id               String    @id @default(uuid())
+  athleteId        String
+  athlete          User      @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  bodyPart         String
+  injuryType       String
+  severity         Int // 1..5
+  status           String    @default("active") // active | recovering | resolved
+  dateReported     DateTime  @default(now()) @db.Date
+  expectedReturn   DateTime? @db.Date
+  notes            String?
+  recoveryTimeline Json? // [{week, focus, restrictions, milestone}]
+  restrictions     String? // current exercise restrictions e.g. "no deep squat"
+  healingPercent   Int?      @default(0) // 0-100 estimated
+  attachmentUrl    String? // uploaded photo / medical document (data URL)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([athleteId, status])
+  @@map("injuries")
+}
+
+// Daily readiness / wellness check-in — how the athlete feels each day.
+// Drives condition-aware AI plan adjustments.
+model DailyCheckin {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date       DateTime @db.Date
+  energy     Int      @default(3) // 1-5
+  soreness   Int      @default(1) // 1-5
+  mood       Int      @default(3) // 1-5
+  sleepHours Float?
+  feeling    String   @default("ok") // great | ok | off | sick
+  symptoms   String?
+  notes      String?
+  readiness  Int      @default(70) // 0-100 computed score
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@map("daily_checkins")
+}
+
+// Exercise library (Gym Visual dataset) — the AI grounds its suggestions in these,
+// and every suggested exercise gets a demo GIF + step-by-step instructions.
+model Exercise {
+  id               String   @id // dataset id, e.g. "0001"
+  name             String
+  nameKey          String // normalized name for matching AI output
+  category         String?
+  bodyPart         String?
+  equipment        String?
+  target           String?
+  muscleGroup      String?
+  secondaryMuscles String[] @default([])
+  instructions     String? // full English text
+  steps            String[] @default([]) // English step list
+  image            String? // jsDelivr CDN thumbnail URL
+  gif              String? // jsDelivr CDN animated demo URL
+
+  @@index([nameKey])
+  @@index([bodyPart])
+  @@index([equipment])
+  @@index([target])
+  @@map("exercises")
+}
+
+// Progress photos (front/side/back) for monthly body-change comparison.
+model ProgressPhoto {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @default(now()) @db.Date
+  pose      String   @default("front") // front | side | back
+  imageUrl  String // data URL (downscaled) or CDN url
+  weight    Float?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+  @@map("progress_photos")
+}
+
+// Fixed-window rate-limit counter (per key). Cheap DB-backed limiter for serverless.
+model RateCounter {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+  @@map("rate_counters")
+}
+
+// GPS-tracked (or manual) run/walk/ride — usable anywhere, not just the gym.
+model RunActivity {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime @db.Date
+  activityType String  @default("run") // run | walk | ride
+  distanceKm  Float
+  durationSec Int
+  calories    Int      @default(0)
+  avgPaceSec  Int? // seconds per km
+  path        Json? // [{lat,lng,t}]
+  source      String   @default("gps") // gps | manual
+  createdAt   DateTime @default(now())
+
+  @@index([userId, date])
+  @@map("run_activities")
+}
+
+model TrainingSession {
+  id              String   @id @default(uuid())
+  coachId         String
+  coach           User     @relation("SessionsByCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  title           String
+  athleteIds      String[] @default([])
+  scheduledAt     DateTime
+  durationMinutes Int      @default(60)
+  location        String?
+  sessionType     String   @default("training") // training | court | assessment | recovery | team
+  status          String   @default("scheduled") // scheduled | completed | cancelled | no_show
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([coachId])
+  @@index([scheduledAt])
+  @@map("sessions")
+}
+
+model CoachInvite {
+  id         String    @id @default(uuid())
+  coachId    String
+  coach      User      @relation("InvitesByCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  email      String?
+  inviteCode String    @unique
+  status     String    @default("pending") // pending | accepted | expired | revoked
+  acceptedById String?
+  acceptedBy   User?   @relation("InvitesAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
+  acceptedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([coachId])
+  @@index([email])
+  @@index([inviteCode])
+  @@map("coach_invites")
+}
+
+// ─────────────────────────── Shared ───────────────────────────
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("tip")
+  read      Boolean  @default(false)
+  data      Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+model Subscription {
+  id                   String    @id @default(uuid())
+  userId               String    @unique
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planType             String    @default("free") // free | individual | team | enterprise | pro
+  status               String    @default("inactive") // active | inactive | past_due | cancelled | trialing
+  coversAthletes       Boolean   @default(false)
+  seatLimit            Int?
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@map("subscriptions")
+}
+
+
+// ─────────────────────────── Market-ready extensions ───────────────────────────
+
+model MedicalDocument {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  docType      String   // ct | mri | xray | blood | other
+  title        String?
+  fileUrl      String
+  ocrText      String?
+  aiSummary    String?
+  findings     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@map("medical_documents")
+}
+
+model RecommendationEvent {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source      String   // workout | meal | ai_advice | goal
+  itemKey     String   // exercise name or meal id
+  action      String   // done | skip | accepted | dismissed
+  reason      String?
+  meta        Json?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("recommendation_events")
+}
+
+model MonthlyProgressReport {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  monthKey      String   // YYYY-MM
+  summary       String?
+  metrics       Json?
+  confidence    Float?
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, monthKey])
+  @@map("monthly_progress_reports")
+}
+
+model CoachLearningNote {
+  id          String   @id @default(uuid())
+  coachId     String
+  athleteId   String
+  context     String   // what was corrected
+  correction  String   // coach's preferred approach
+  createdAt   DateTime @default(now())
+
+  @@index([athleteId])
+  @@index([coachId])
+  @@map("coach_learning_notes")
+}
+
+
+// MoMo-only payment requests (no Stripe/cards)
+model PaymentRequest {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role          String   // athlete | coach
+  planType      String   // free | individual | team40 | team80 | enterprise | athlete_monthly
+  amountLabel   String?  // human label e.g. "40$"
+  payerNumber   String   // MoMo number used to pay
+  payerName     String   // Name on MoMo
+  payToCode     String   @default("8787") // platform code
+  status        String   @default("pending") // pending | approved | rejected
+  approvedById  String?
+  note          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([status])
+  @@map("payment_requests")
+}
+
+
+model ExercisePerformance {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exerciseName String?
+  date       DateTime @db.Date
+  setsDone   Int?
+  repsDone   String?
+  effort     String   // easy | ok | hard
+  createdAt  DateTime @default(now())
+
+  @@index([userId, date])
+  @@index([userId, exerciseId])
+  @@map("exercise_performances")
+}
+
+
+model AppConfig {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+  @@map("app_config")
+}
