@@ -1,3 +1,7 @@
+// AI calls take 15-30s; without this Vercel kills the function before it can
+// answer and the caller receives nothing at all.
+export const maxDuration = 60;
+
 /**
  * GET /api/ai/agents — list all agents
  * POST /api/ai/agents — auto-route { message, history?, payload? }

@@ -1,3 +1,7 @@
+// AI calls take 15-30s; without this Vercel kills the function before it can
+// answer and the caller receives nothing at all.
+export const maxDuration = 60;
+
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/authz";

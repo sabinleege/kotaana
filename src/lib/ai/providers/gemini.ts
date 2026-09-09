@@ -1,5 +1,6 @@
 import type { ImageInput } from "../types";
 import { AiNotConfiguredError } from "@/lib/ai/errors";
+import { AI_CALL_TIMEOUT_MS } from "@/lib/ai/limits";
 
 export async function geminiGenerate(opts: {
   model: string;
@@ -24,10 +25,19 @@ export async function geminiGenerate(opts: {
   if (opts.json) body.generationConfig = { responseMimeType: "application/json" };
 
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${opts.model}:generateContent`;
+  // Hard per-call timeout so a stalled model can't burn the whole request
+  // budget and leave the caller with no response.
   const res = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-goog-api-key": key },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(AI_CALL_TIMEOUT_MS),
+  }).catch((e) => {
+    throw new Error(
+      e?.name === "TimeoutError" || e?.name === "AbortError"
+        ? `Gemini ${opts.model} timed out after ${AI_CALL_TIMEOUT_MS}ms`
+        : `Gemini ${opts.model} request failed: ${e?.message ?? e}`,
+    );
   });
 
   if (!res.ok) {

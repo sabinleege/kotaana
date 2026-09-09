@@ -4,6 +4,7 @@ import { geminiGenerate } from "./providers/gemini";
 import { openrouterGenerate } from "./providers/openrouter";
 import { fallbackChain } from "./fallback";
 import { parseJsonLoose } from "./validation/validator";
+import { AI_TOTAL_BUDGET_MS } from "./limits";
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -43,7 +44,18 @@ export async function aiGenerate(opts: GenerateOptions): Promise<AIResult> {
   let lastError: Error | null = null;
   let fallbackUsed = false;
 
+  // The chain can be four models deep and each call takes 15-30s, which is far
+  // more than a serverless function is allowed. Stop starting new attempts once
+  // the budget is spent so the handler can still return an error — being killed
+  // mid-call is what leaves the user staring at a plan that never arrives.
+  const deadline = Date.now() + AI_TOTAL_BUDGET_MS;
+  const outOfTime = () => Date.now() > deadline - 2_000;
+
   for (let i = 0; i < chain.length; i++) {
+    if (outOfTime()) {
+      lastError = lastError ?? new Error(`AI budget of ${AI_TOTAL_BUDGET_MS}ms exhausted`);
+      break;
+    }
     const r = chain[i];
     const cfg = modelForRole(r);
     const key = `${cfg.provider}:${cfg.model}`;
@@ -57,6 +69,7 @@ export async function aiGenerate(opts: GenerateOptions): Promise<AIResult> {
     }
 
     for (let attempt = 0; attempt < 2; attempt++) {
+      if (outOfTime()) break;
       try {
         const out = await callProvider(cfg.provider, cfg.model, opts);
         return {

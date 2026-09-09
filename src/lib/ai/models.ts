@@ -18,20 +18,29 @@ export const AI_MODELS = {
   // nemotron-3-ultra-550b returned only keep-alive whitespace and no completion
   // ("OpenRouter returned empty response"), and deepseek-r1-0528 is no longer
   // listed at all. Re-check with /api/v1/models before changing these.
+  // Agent/reasoning/long-context run on Gemini rather than OpenRouter.
+  //
+  // The original design put these on OpenRouter's `:free` tier, but those models
+  // are shared and heavily throttled: plan generation returned 429 "temporarily
+  // rate-limited upstream" and took 23s+ per attempt, so a four-model fallback
+  // chain blew the serverless time limit and the user got no plan at all.
+  // Gemini answers the same JSON prompt in ~15s on a dedicated key. OpenRouter
+  // stays as the last-resort fallback below.
+  //
+  // Set AI_AGENT_MODEL / AI_REASONING_MODEL to move these back to OpenRouter
+  // once a paid key with real rate limits is configured.
   agent: {
-    provider: "openrouter" as const,
-    model: process.env.AI_AGENT_MODEL || "nvidia/nemotron-3-super-120b-a12b:free",
+    provider: (process.env.AI_AGENT_PROVIDER as "gemini" | "openrouter") || ("gemini" as const),
+    model: process.env.AI_AGENT_MODEL || "gemini-3.5-flash",
   },
   reasoning: {
-    provider: "openrouter" as const,
-    model: process.env.AI_REASONING_MODEL || "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    provider:
+      (process.env.AI_REASONING_PROVIDER as "gemini" | "openrouter") || ("gemini" as const),
+    model: process.env.AI_REASONING_MODEL || "gemini-3.5-flash",
   },
   long_context: {
-    provider: "openrouter" as const,
-    model:
-      process.env.AI_LONG_CONTEXT_MODEL ||
-      process.env.AI_AGENT_MODEL ||
-      "nvidia/nemotron-3-super-120b-a12b:free",
+    provider: "gemini" as const,
+    model: process.env.AI_LONG_CONTEXT_MODEL || "gemini-3.5-flash",
   },
   fallback: {
     provider: "openrouter" as const,

@@ -1,3 +1,7 @@
+// AI calls take 15-30s; without this Vercel kills the function before it can
+// answer and the caller receives nothing at all.
+export const maxDuration = 60;
+
 /**
  * Cron: once per day batch — rollover is per-user on login;
  * this rebuilds daily reports + sessions for recently active users.

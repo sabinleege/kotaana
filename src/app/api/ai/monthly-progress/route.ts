@@ -1,3 +1,7 @@
+// AI calls take 15-30s; without this Vercel kills the function before it can
+// answer and the caller receives nothing at all.
+export const maxDuration = 60;
+
 import { requireUser } from "@/lib/authz";
 import { route, json } from "@/lib/api";
 import { buildMonthlyProgress } from "@/lib/progress/monthly-intelligence";

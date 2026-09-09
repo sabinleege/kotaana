@@ -1,3 +1,7 @@
+// AI calls take 15-30s; without this Vercel kills the function before it can
+// answer and the caller receives nothing at all.
+export const maxDuration = 60;
+
 /**
  * GET — today's session cards (builds once per day from daily report + dataset).
  * POST — force rebuild session (still same day report unless ?refreshReport=1).

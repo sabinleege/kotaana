@@ -1,5 +1,6 @@
 import type { ImageInput } from "../types";
 import { AiNotConfiguredError } from "@/lib/ai/errors";
+import { AI_CALL_TIMEOUT_MS } from "@/lib/ai/limits";
 
 export async function openrouterGenerate(opts: {
   model: string;
@@ -31,6 +32,9 @@ export async function openrouterGenerate(opts: {
     body.response_format = { type: "json_object" };
   }
 
+  // Hard per-call timeout. Some free models answer with keep-alive whitespace
+  // and never send a completion; without this the request hangs until the
+  // serverless function is killed, and the caller gets nothing at all.
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -40,6 +44,13 @@ export async function openrouterGenerate(opts: {
       "X-Title": "Kotaana",
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(AI_CALL_TIMEOUT_MS),
+  }).catch((e) => {
+    throw new Error(
+      e?.name === "TimeoutError" || e?.name === "AbortError"
+        ? `OpenRouter ${opts.model} timed out after ${AI_CALL_TIMEOUT_MS}ms`
+        : `OpenRouter ${opts.model} request failed: ${e?.message ?? e}`,
+    );
   });
 
   if (!res.ok) {
