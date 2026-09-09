@@ -1,17 +1,24 @@
 import { requireUser } from "@/lib/authz";
 import { route, json } from "@/lib/api";
 import { requireCoach, listManagedAthleteIds } from "@/lib/coach/access";
+import { permissionsForMany } from "@/lib/coach/permissions";
 import { prisma } from "@/lib/db";
 
 export const GET = route(async () => {
   const me = await requireUser();
   await requireCoach(me.id);
   const relations = await listManagedAthleteIds(me.id, false);
-  const ids = relations.map((r) => r.athleteId);
-  if (!ids.length) return json({ injuries: [], illness: [] });
+  const allIds = relations.map((r) => r.athleteId);
+  if (!allIds.length) return json({ injuries: [], illness: [] });
+
+  // Only athletes who share the relevant category appear on this board.
+  const permMap = await permissionsForMany(allIds);
+  const ids = allIds.filter((id) => permMap.get(id)!.can("injuries"));
+  const healthIds = allIds.filter((id) => permMap.get(id)!.can("health"));
+  if (!ids.length && !healthIds.length) return json({ injuries: [], illness: [] });
 
   const profiles = await prisma.profile.findMany({
-    where: { userId: { in: ids } },
+    where: { userId: { in: allIds } },
     select: { userId: true, fullName: true },
   });
   const name = (id: string) => profiles.find((p) => p.userId === id)?.fullName || "Athlete";
@@ -25,7 +32,7 @@ export const GET = route(async () => {
   since.setDate(since.getDate() - 14);
   const checkins = await prisma.dailyCheckin.findMany({
     where: {
-      userId: { in: ids },
+      userId: { in: healthIds },
       date: { gte: since },
       OR: [{ feeling: "sick" }, { feeling: "off" }],
     },

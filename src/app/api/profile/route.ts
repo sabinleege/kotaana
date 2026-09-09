@@ -58,6 +58,8 @@ const patchSchema = z
     cycle_tracking: z.boolean(),
     cycle_last_period: z.string().nullable(),
     cycle_length_days: z.number().int(),
+    // What this athlete lets a linked coach see. Enforced in lib/coach/permissions.ts.
+    coach_permissions: z.record(z.string(), z.boolean()),
   })
   .partial();
 
@@ -78,6 +80,7 @@ const CAMEL: Record<string, string> = {
   momo_name: "momoName",
   health_conditions: "healthConditions", is_pregnant: "isPregnant", pregnancy_due_date: "pregnancyDueDate",
   cycle_tracking: "cycleTracking", cycle_last_period: "cycleLastPeriod", cycle_length_days: "cycleLengthDays",
+  coach_permissions: "coachPermissions",
 };
 
 const DATE_KEYS = new Set(["pregnancy_due_date", "cycle_last_period"]);

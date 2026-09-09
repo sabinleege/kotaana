@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/authz";
 import { route, json } from "@/lib/api";
 import { requireCoach, listManagedAthleteIds } from "@/lib/coach/access";
+import { permissionsForMany } from "@/lib/coach/permissions";
 import { prisma } from "@/lib/db";
 
 export const GET = route(async (req: Request) => {
@@ -49,6 +50,8 @@ export const GET = route(async (req: Request) => {
   ]);
 
   const injMap = new Map(injuryGroups.map((g) => [g.athleteId, g._count]));
+  // Each athlete decides what a linked coach sees — apply per row.
+  const permMap = await permissionsForMany(ids);
 
   const athletes = ids.map((id) => {
     const p = profiles.find((x) => x.userId === id);
@@ -63,24 +66,38 @@ export const GET = route(async (req: Request) => {
       : p?.adherencePercentage ?? null;
     const lastCheckin = c.sort((a, b) => b.date.getTime() - a.date.getTime())[0]?.date;
     const lastWorkout = w.sort((a, b) => b.date.getTime() - a.date.getTime())[0]?.date;
-    const injuries = injMap.get(id) || 0;
+    // This athlete's own privacy settings decide what their coach sees.
+    const perms = permMap.get(id)!;
+    const seesInjuries = perms.can("injuries");
+    const seesHealth = perms.can("health");
+    const seesTraining = perms.can("workout_history");
+
+    const injuries = seesInjuries ? injMap.get(id) || 0 : 0;
+    const shownReadiness = seesHealth ? readiness : null;
+    const shownAdherence = seesTraining ? adherence : null;
+
     let aiFlag = "ok";
-    if (injuries > 0 || (readiness != null && readiness < 50)) aiFlag = "risk";
-    else if (readiness != null && readiness < 65) aiFlag = "warn";
+    if (injuries > 0 || (shownReadiness != null && shownReadiness < 50)) aiFlag = "risk";
+    else if (shownReadiness != null && shownReadiness < 65) aiFlag = "warn";
 
     return {
       athleteId: id,
       name: p?.fullName || u?.name || "Athlete",
       email: p?.email || u?.email,
       status: statusMap.get(id) || "active",
-      readiness,
-      adherence,
+      readiness: shownReadiness,
+      adherence: shownAdherence,
       injuries,
+      hidden: [
+        ...(seesInjuries ? [] : ["injuries"]),
+        ...(seesHealth ? [] : ["health"]),
+        ...(seesTraining ? [] : ["workout_history"]),
+      ],
       lastActive: p?.lastActiveAt?.toISOString() || lastCheckin?.toISOString() || null,
       ...(detailed
         ? {
-            lastCheckin: lastCheckin?.toISOString() || null,
-            lastWorkout: lastWorkout?.toISOString() || null,
+            lastCheckin: seesHealth ? lastCheckin?.toISOString() || null : null,
+            lastWorkout: seesTraining ? lastWorkout?.toISOString() || null : null,
             aiFlag,
           }
         : {}),
