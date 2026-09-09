@@ -28,6 +28,12 @@ declare module "next-auth/jwt" {
  */
 export const authConfig = {
   session: { strategy: "jwt" },
+  // This app only ever runs behind a trusted proxy (Vercel) or on localhost, so
+  // trust the forwarded host. Without it Auth.js rejects every request with
+  // "UntrustedHost" and each /api/auth/* route 500s — which looks exactly like
+  // a missing AUTH_SECRET, so it is worth pinning here rather than depending on
+  // AUTH_TRUST_HOST being set correctly in every environment.
+  trustHost: true,
   // Send auth failures back to our own login page (with ?error=...) instead of
   // Auth.js's built-in error route, which renders a broken page.
   pages: { signIn: "/auth", error: "/auth" },
